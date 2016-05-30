@@ -15,7 +15,7 @@ package my_font_test
 
 import (
 	"fmt"
-	"font"
+	font "my_font"
 	"testing"
 )
 
