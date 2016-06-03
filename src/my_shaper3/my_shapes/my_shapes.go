@@ -35,6 +35,40 @@ type Drawer interface {
 	Draw(img draw.Image, x, y int) error
 }
 
+type Rectangle struct {
+	color.Color
+	image.Rectangle
+	Filled bool
+}
+
+func (rect Rectangle) Draw(img draw.Image, x, y int) error {
+	x0 := (x - rect.Rectangle.Max.X) / 2
+	y0 := (y - rect.Rectangle.Max.Y) / 2
+	x1 := (x + rect.Rectangle.Max.X) / 2
+	y1 := (y + rect.Rectangle.Max.Y) / 2
+
+	// Check top-left and bottom-right points are within bounds
+	if err := checkBounds(img, x0, y0); err != nil {
+		return err
+	}
+	if err := checkBounds(img, x1, y1); err != nil {
+		return err
+	}
+
+	fill := validFillColor(rect.Color)
+	points := []image.Point{
+		{X: x0, Y: y0},
+		{X: x0, Y: y1},
+		{X: x1, Y: y1},
+		{X: x1, Y: y0},
+		{X: x0, Y: y0},
+	}
+	for i := 0; i < 4; i++ { // Draw lines between the apexes
+		drawLine(img, points[i], points[i+1], fill)
+	}
+	return nil
+}
+
 type Circle struct {
 	color.Color
 	Radius int
@@ -197,19 +231,33 @@ func (polygon RegularPolygon) String() string {
 type Option struct {
 	Fill   color.Color
 	Radius int
+	Height int
+	Width  int
 }
 
 func New(shape string, option Option) (Drawer, error) {
-	sidesForShape := map[string]int{"triangle": 3, "square": 4,
-		"pentagon": 5, "hexagon": 6, "heptagon": 7, "octagon": 8,
-		"enneagon": 9, "nonagon": 9, "decagon": 10}
-	if sides, found := sidesForShape[shape]; found {
-		return RegularPolygon{option.Fill, option.Radius, sides}, nil
+	switch shape {
+	case "rectangle":
+		return Rectangle{
+			option.Fill,
+			image.Rectangle{
+				Min: image.Point{X: 0, Y: 0},
+				Max: image.Point{X: option.Height, Y: option.Width},
+			},
+			option.Fill == nil,
+		}, nil
+	case "circle":
+		return Circle{option.Fill, option.Radius}, nil
+	default:
+		sidesForShape := map[string]int{"triangle": 3, "square": 4,
+			"pentagon": 5, "hexagon": 6, "heptagon": 7, "octagon": 8,
+			"enneagon": 9, "nonagon": 9, "decagon": 10}
+		if sides, found := sidesForShape[shape]; found {
+			return RegularPolygon{option.Fill, option.Radius, sides}, nil
+		} else {
+			return nil, fmt.Errorf("shapes.New(): invalid shape '%s'", shape)
+		}
 	}
-	if shape != "circle" {
-		return nil, fmt.Errorf("shapes.New(): invalid shape '%s'", shape)
-	}
-	return Circle{option.Fill, option.Radius}, nil
 }
 
 func FilledImage(width, height int, fill color.Color) draw.Image {
